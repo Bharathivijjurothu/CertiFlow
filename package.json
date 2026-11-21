@@ -1,0 +1,28 @@
+{
+  "name": "certiflow",
+  "version": "1.0.0",
+  "private": true,
+  "description": "CertiFlow - Skilling Certificate Issuance Platform",
+  "workspaces": [
+    "apps/*"
+  ],
+  "scripts": {
+    "build": "npm run build --workspaces",
+    "build:backend": "npm run build --workspace=@certiflow/backend",
+    "build:frontend": "npm run build --workspace=@certiflow/frontend",
+    "docker:up": "docker compose up --build",
+    "docker:down": "docker compose down",
+    "docker:down:volumes": "docker compose down -v"
+  },
+  "keywords": [
+    "certiflow",
+    "skilling",
+    "certificates",
+    "blockchain",
+    "express",
+    "react",
+    "prisma"
+  ],
+  "author": "CertiFlow Team",
+  "license": "ISC"
+}

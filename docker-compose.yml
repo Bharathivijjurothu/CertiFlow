@@ -1,0 +1,97 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: certiflow-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-certiflow}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-certiflow_secret}
+      POSTGRES_DB: ${POSTGRES_DB:-certiflow_db}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-certiflow} -d ${POSTGRES_DB:-certiflow_db}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+    networks:
+      - certiflow-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: certiflow-redis
+    restart: unless-stopped
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+    networks:
+      - certiflow-network
+
+  backend:
+    build:
+      context: ./apps/backend
+      dockerfile: Dockerfile
+    container_name: certiflow-backend
+    restart: unless-stopped
+    environment:
+      NODE_ENV: ${NODE_ENV:-development}
+      PORT: ${PORT:-5000}
+      DATABASE_URL: ${DATABASE_URL:-postgresql://certiflow:certiflow_secret@postgres:5432/certiflow_db?schema=public}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379}
+      VERIFICATION_BASE_URL: ${VERIFICATION_BASE_URL:-http://localhost:5173/verify}
+    volumes:
+      - certificate_storage:/app/storage
+    ports:
+      - "${PORT:-5000}:5000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:5000/health || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 25s
+    networks:
+      - certiflow-network
+
+  frontend:
+    build:
+      context: ./apps/frontend
+      dockerfile: Dockerfile
+    container_name: certiflow-frontend
+    restart: unless-stopped
+    environment:
+      VITE_API_URL: ${VITE_API_URL:-http://localhost:5000}
+    ports:
+      - "5173:5173"
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - certiflow-network
+
+volumes:
+  postgres_data:
+    name: certiflow_postgres_data
+  redis_data:
+    name: certiflow_redis_data
+  certificate_storage:
+    name: certiflow_certificate_storage
+
+networks:
+  certiflow-network:
+    name: certiflow_network
+    driver: bridge
